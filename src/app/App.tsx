@@ -1,5 +1,10 @@
 import { AppRouterProvider } from '@/app/router'
+import { ToastProvider } from '@/components/ui/Toast'
 
 export function App() {
-  return <AppRouterProvider />
+  return (
+    <ToastProvider>
+      <AppRouterProvider />
+    </ToastProvider>
+  )
 }
