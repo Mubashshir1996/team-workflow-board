@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { useBeforeUnload, useBlocker } from 'react-router-dom'
 import { Button, Input, Modal, Select, TextArea } from '@/components/ui'
 import {
   taskFormSchema,
@@ -65,12 +66,14 @@ export function TaskFormModal({
     register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting },
+    formState: { errors, isDirty, isSubmitting },
     setFocus,
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: getFormValues(task),
   })
+  const shouldWarnUnsavedChanges = open && isDirty && !isSubmitting
+  const blocker = useBlocker(shouldWarnUnsavedChanges)
 
   useEffect(() => {
     if (!open) return
@@ -78,6 +81,24 @@ export function TaskFormModal({
     const focusTimer = window.setTimeout(() => setFocus('title'), 0)
     return () => window.clearTimeout(focusTimer)
   }, [open, reset, setFocus, task])
+
+  useBeforeUnload((event) => {
+    if (!shouldWarnUnsavedChanges) return
+    event.preventDefault()
+    event.returnValue = ''
+  })
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    const shouldLeave = window.confirm(
+      'You have unsaved changes. Are you sure you want to leave?',
+    )
+    if (shouldLeave) {
+      blocker.proceed()
+    } else {
+      blocker.reset()
+    }
+  }, [blocker])
 
   const onSubmit = handleSubmit((values) => {
     onSubmitTask({
@@ -93,13 +114,26 @@ export function TaskFormModal({
   const handleFormSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
     void onSubmit(event)
   }
+  const handleRequestClose = () => {
+    if (!shouldWarnUnsavedChanges) {
+      onClose()
+      return
+    }
+
+    const shouldDiscard = window.confirm(
+      'You have unsaved changes. Discard them and close?',
+    )
+    if (shouldDiscard) {
+      onClose()
+    }
+  }
 
   const isEditMode = mode === 'edit'
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleRequestClose}
       title={isEditMode ? 'Edit Task' : 'Create Task'}
       className="max-w-2xl"
     >
@@ -159,7 +193,7 @@ export function TaskFormModal({
         />
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={handleRequestClose}>
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
