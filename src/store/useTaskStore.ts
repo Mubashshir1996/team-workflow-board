@@ -128,6 +128,7 @@ export const useTaskStore = create<TaskStoreState>((set) => ({
 }))
 
 export const selectTasks = (state: TaskStoreState) => state.tasks
+export const selectTaskCount = (state: TaskStoreState) => state.tasks.length
 export const selectIsLoaded = (state: TaskStoreState) => state.isLoaded
 export const selectMigrationStatus = (state: TaskStoreState) =>
   state.migrationStatus

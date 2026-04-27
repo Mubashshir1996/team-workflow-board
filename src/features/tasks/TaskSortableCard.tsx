@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskCard } from '@/features/tasks/TaskCard'
@@ -10,7 +11,7 @@ type TaskSortableCardProps = {
   onEditTask: (task: Task) => void
 }
 
-export function TaskSortableCard({
+export const TaskSortableCard = memo(function TaskSortableCard({
   task,
   nowTs,
   onEditTask,
@@ -39,4 +40,4 @@ export function TaskSortableCard({
       <TaskCard task={task} nowTs={nowTs} onEditTask={onEditTask} />
     </div>
   )
-}
+})

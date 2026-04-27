@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -5,25 +6,28 @@ import {
 } from '@dnd-kit/sortable'
 import { TaskSortableCard } from '@/features/tasks/TaskSortableCard'
 import { cn } from '@/lib/cn'
+import { useTaskStore } from '@/store/useTaskStore'
 import type { Task, TaskStatus } from '@/types/task'
+import { useShallow } from 'zustand/react/shallow'
 
 type TaskColumnProps = {
   status: TaskStatus
   title: string
   description: string
   nowTs: number
-  tasks: Task[]
+  tasksSelector: (state: { tasks: Task[] }) => Task[]
   onEditTask: (task: Task) => void
 }
 
-export function TaskColumn({
+export const TaskColumn = memo(function TaskColumn({
   status,
   title,
   description,
   nowTs,
-  tasks,
+  tasksSelector,
   onEditTask,
 }: TaskColumnProps) {
+  const tasks = useTaskStore(useShallow(tasksSelector))
   const { isOver, setNodeRef } = useDroppable({
     id: `column:${status}`,
     data: {
@@ -31,6 +35,7 @@ export function TaskColumn({
       status,
     },
   })
+  const taskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
 
   return (
     <section
@@ -54,10 +59,7 @@ export function TaskColumn({
       </header>
 
       <div className="mt-4 flex flex-1 flex-col gap-3">
-        <SortableContext
-          items={tasks.map((task) => task.id)}
-          strategy={verticalListSortingStrategy}
-        >
+        <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {tasks.length > 0 ? (
             tasks.map((task) => (
               <TaskSortableCard
@@ -76,4 +78,4 @@ export function TaskColumn({
       </div>
     </section>
   )
-}
+})

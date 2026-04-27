@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DndContext,
   type DragEndEvent,
@@ -27,7 +27,9 @@ import {
   selectMigratedFromVersion,
   selectMigrationStatus,
   selectStorageStatus,
+  selectTaskCount,
   useTaskActions,
+  useTaskById,
   useTaskStore,
 } from '@/store/useTaskStore'
 import type { Task, TaskStatus } from '@/types/task'
@@ -42,7 +44,7 @@ export function TaskBoardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const toast = useToast()
   const isLoaded = useTaskStore(selectIsLoaded)
-  const tasks = useTaskStore((state) => state.tasks)
+  const taskCount = useTaskStore(selectTaskCount)
   const migrationStatus = useTaskStore(selectMigrationStatus)
   const migratedFromVersion = useTaskStore(selectMigratedFromVersion)
   const storageStatus = useTaskStore(selectStorageStatus)
@@ -67,30 +69,32 @@ export function TaskBoardPage() {
     [searchParams],
   )
 
-  const editingTask = useMemo(
-    () => tasks.find((task) => task.id === editingTaskId) ?? null,
-    [editingTaskId, tasks],
-  )
+  const editingTask = useTaskById(editingTaskId ?? '') ?? null
 
-  const filteredAndSortedTasks = useMemo(
-    () => applyTaskFiltersAndSort(tasks, filters),
-    [filters, tasks],
+  const filteredTaskCountSelector = useMemo(
+    () => (state: { tasks: Task[] }) => applyTaskFiltersAndSort(state.tasks, filters).length,
+    [filters],
   )
-
-  const tasksByStatus = useMemo(() => {
-    const grouped: Record<TaskStatus, Task[]> = {
-      todo: [],
-      in_progress: [],
-      done: [],
-    }
-    filteredAndSortedTasks.forEach((task) => grouped[task.status].push(task))
-    return grouped
-  }, [filteredAndSortedTasks])
+  const filteredTaskCount = useTaskStore(filteredTaskCountSelector)
 
   const visibleColumns = useMemo(
     () =>
       TASK_BOARD_COLUMNS.filter((column) => filters.statuses.includes(column.key)),
     [filters.statuses],
+  )
+
+  const tasksByStatusSelectors = useMemo(
+    () => ({
+      todo: (state: { tasks: Task[] }) =>
+        applyTaskFiltersAndSort(state.tasks, filters).filter((task) => task.status === 'todo'),
+      in_progress: (state: { tasks: Task[] }) =>
+        applyTaskFiltersAndSort(state.tasks, filters).filter(
+          (task) => task.status === 'in_progress',
+        ),
+      done: (state: { tasks: Task[] }) =>
+        applyTaskFiltersAndSort(state.tasks, filters).filter((task) => task.status === 'done'),
+    }),
+    [filters],
   )
 
   useEffect(() => {
@@ -109,23 +113,23 @@ export function TaskBoardPage() {
     return () => window.clearInterval(intervalId)
   }, [])
 
-  const handleOpenCreate = () => {
+  const handleOpenCreate = useCallback(() => {
     setFormMode('create')
     setEditingTaskId(null)
     setIsFormOpen(true)
-  }
+  }, [])
 
-  const handleOpenEdit = (task: Task) => {
+  const handleOpenEdit = useCallback((task: Task) => {
     setFormMode('edit')
     setEditingTaskId(task.id)
     setIsFormOpen(true)
-  }
+  }, [])
 
-  const handleCloseForm = () => {
+  const handleCloseForm = useCallback(() => {
     setIsFormOpen(false)
-  }
+  }, [])
 
-  const handleSubmitTask = (payload: SubmitTaskPayload) => {
+  const handleSubmitTask = useCallback((payload: SubmitTaskPayload) => {
     if (formMode === 'edit' && editingTask) {
       updateTask(editingTask.id, {
         title: payload.title,
@@ -146,12 +150,13 @@ export function TaskBoardPage() {
       priority: payload.priority,
       tags: payload.tags,
     })
-  }
+  }, [addTask, editingTask, formMode, updateTask])
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (!over) return
 
+    const tasks = useTaskStore.getState().tasks
     const activeTaskId = String(active.id)
     const activeTask = tasks.find((task) => task.id === activeTaskId)
     if (!activeTask) return
@@ -176,14 +181,14 @@ export function TaskBoardPage() {
     }
 
     moveTask(activeTask.id, nextStatus)
-  }
+  }, [moveTask])
 
-  const updateFilters = (nextFilters: TaskFiltersState) => {
+  const updateFilters = useCallback((nextFilters: TaskFiltersState) => {
     const nextParams = buildSearchParamsFromTaskFilters(nextFilters)
     setSearchParams(nextParams, { replace: true })
-  }
+  }, [setSearchParams])
 
-  const handleStatusToggle = (status: TaskStatus) => {
+  const handleStatusToggle = useCallback((status: TaskStatus) => {
     const isActive = filters.statuses.includes(status)
     if (isActive && filters.statuses.length === 1) return
 
@@ -195,9 +200,9 @@ export function TaskBoardPage() {
       ...filters,
       statuses: nextStatuses,
     })
-  }
+  }, [filters, updateFilters])
 
-  const handlePriorityChange = (value: string) => {
+  const handlePriorityChange = useCallback((value: string) => {
     if (value !== 'all' && value !== 'low' && value !== 'medium' && value !== 'high') {
       return
     }
@@ -205,9 +210,9 @@ export function TaskBoardPage() {
       ...filters,
       priority: value,
     })
-  }
+  }, [filters, updateFilters])
 
-  const handleSortChange = (value: string) => {
+  const handleSortChange = useCallback((value: string) => {
     if (value !== 'createdAt' && value !== 'updatedAt' && value !== 'priority') {
       return
     }
@@ -215,21 +220,21 @@ export function TaskBoardPage() {
       ...filters,
       sortBy: value,
     })
-  }
+  }, [filters, updateFilters])
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     updateFilters({
       ...filters,
       query: value.trimStart(),
     })
-  }
+  }, [filters, updateFilters])
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     updateFilters(DEFAULT_TASK_FILTERS)
-  }
+  }, [updateFilters])
 
-  const hasTasks = tasks.length > 0
-  const hasFilteredResults = filteredAndSortedTasks.length > 0
+  const hasTasks = taskCount > 0
+  const hasFilteredResults = filteredTaskCount > 0
 
   return (
     <PageShell>
@@ -351,7 +356,7 @@ export function TaskBoardPage() {
                 title={column.title}
                 description={column.description}
                 nowTs={nowTs}
-                tasks={tasksByStatus[column.key]}
+                tasksSelector={tasksByStatusSelectors[column.key]}
                 onEditTask={handleOpenEdit}
               />
             ))}

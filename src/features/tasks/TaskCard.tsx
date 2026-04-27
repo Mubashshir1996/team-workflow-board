@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { formatRelativeUpdatedTime } from '@/features/tasks/formatRelativeUpdatedTime'
 import { cn } from '@/lib/cn'
@@ -19,7 +20,11 @@ function formatPriority(priority: TaskPriority) {
   return priority.charAt(0).toUpperCase() + priority.slice(1)
 }
 
-export function TaskCard({ task, nowTs, onEditTask }: TaskCardProps) {
+export const TaskCard = memo(function TaskCard({
+  task,
+  nowTs,
+  onEditTask,
+}: TaskCardProps) {
   return (
     <Card className="border-slate-200">
       <CardHeader className="p-4 pb-3">
@@ -75,4 +80,4 @@ export function TaskCard({ task, nowTs, onEditTask }: TaskCardProps) {
       </CardContent>
     </Card>
   )
-}
+})

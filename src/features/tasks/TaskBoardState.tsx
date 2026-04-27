@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Button } from '@/components/ui'
 import { cn } from '@/lib/cn'
 
@@ -11,7 +12,7 @@ type TaskBoardStateProps = {
   compact?: boolean
 }
 
-export function TaskBoardState({
+export const TaskBoardState = memo(function TaskBoardState({
   eyebrow,
   title,
   message,
@@ -53,4 +54,4 @@ export function TaskBoardState({
       </div>
     </div>
   )
-}
+})
