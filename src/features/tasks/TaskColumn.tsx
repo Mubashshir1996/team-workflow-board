@@ -1,25 +1,22 @@
 import { TaskCard } from '@/features/tasks/TaskCard'
 import { cn } from '@/lib/cn'
-import { useTasksByStatus } from '@/store/useTaskStore'
-import type { Task, TaskStatus } from '@/types/task'
+import type { Task } from '@/types/task'
 
 type TaskColumnProps = {
-  status: TaskStatus
   title: string
   description: string
   nowTs: number
+  tasks: Task[]
   onEditTask: (task: Task) => void
 }
 
 export function TaskColumn({
-  status,
   title,
   description,
   nowTs,
+  tasks,
   onEditTask,
 }: TaskColumnProps) {
-  const tasks = useTasksByStatus(status)
-
   return (
     <section
       aria-label={title}

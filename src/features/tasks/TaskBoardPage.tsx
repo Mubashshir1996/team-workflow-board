@@ -1,13 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/ui'
+import { useSearchParams } from 'react-router-dom'
+import { Button, Input, Select } from '@/components/ui'
 import { PageShell } from '@/components/ui/PageShell'
 import { TaskColumn } from '@/features/tasks/TaskColumn'
 import { TaskFormModal, type SubmitTaskPayload } from '@/features/tasks/TaskFormModal'
+import {
+  applyTaskFiltersAndSort,
+  buildSearchParamsFromTaskFilters,
+  DEFAULT_TASK_FILTERS,
+  parseTaskFiltersFromSearchParams,
+  type TaskFiltersState,
+} from '@/features/tasks/taskFilters'
 import { TASK_BOARD_COLUMNS } from '@/features/tasks/taskBoard.constants'
 import { selectIsLoaded, useTaskActions, useTaskStore } from '@/store/useTaskStore'
-import type { Task } from '@/types/task'
+import type { Task, TaskStatus } from '@/types/task'
+
+const STATUS_FILTER_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
+  { value: 'todo', label: 'Backlog' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'done', label: 'Done' },
+]
 
 export function TaskBoardPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const isLoaded = useTaskStore(selectIsLoaded)
   const tasks = useTaskStore((state) => state.tasks)
   const { addTask, loadInitialTasks, updateTask } = useTaskActions()
@@ -16,9 +31,35 @@ export function TaskBoardPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
 
+  const filters = useMemo(
+    () => parseTaskFiltersFromSearchParams(searchParams),
+    [searchParams],
+  )
+
   const editingTask = useMemo(
     () => tasks.find((task) => task.id === editingTaskId) ?? null,
     [editingTaskId, tasks],
+  )
+
+  const filteredAndSortedTasks = useMemo(
+    () => applyTaskFiltersAndSort(tasks, filters),
+    [filters, tasks],
+  )
+
+  const tasksByStatus = useMemo(() => {
+    const grouped: Record<TaskStatus, Task[]> = {
+      todo: [],
+      in_progress: [],
+      done: [],
+    }
+    filteredAndSortedTasks.forEach((task) => grouped[task.status].push(task))
+    return grouped
+  }, [filteredAndSortedTasks])
+
+  const visibleColumns = useMemo(
+    () =>
+      TASK_BOARD_COLUMNS.filter((column) => filters.statuses.includes(column.key)),
+    [filters.statuses],
   )
 
   useEffect(() => {
@@ -71,6 +112,56 @@ export function TaskBoardPage() {
     })
   }
 
+  const updateFilters = (nextFilters: TaskFiltersState) => {
+    const nextParams = buildSearchParamsFromTaskFilters(nextFilters)
+    setSearchParams(nextParams, { replace: true })
+  }
+
+  const handleStatusToggle = (status: TaskStatus) => {
+    const isActive = filters.statuses.includes(status)
+    if (isActive && filters.statuses.length === 1) return
+
+    const nextStatuses = isActive
+      ? filters.statuses.filter((value) => value !== status)
+      : [...filters.statuses, status]
+
+    updateFilters({
+      ...filters,
+      statuses: nextStatuses,
+    })
+  }
+
+  const handlePriorityChange = (value: string) => {
+    if (value !== 'all' && value !== 'low' && value !== 'medium' && value !== 'high') {
+      return
+    }
+    updateFilters({
+      ...filters,
+      priority: value,
+    })
+  }
+
+  const handleSortChange = (value: string) => {
+    if (value !== 'createdAt' && value !== 'updatedAt' && value !== 'priority') {
+      return
+    }
+    updateFilters({
+      ...filters,
+      sortBy: value,
+    })
+  }
+
+  const handleSearchChange = (value: string) => {
+    updateFilters({
+      ...filters,
+      query: value.trimStart(),
+    })
+  }
+
+  const handleResetFilters = () => {
+    updateFilters(DEFAULT_TASK_FILTERS)
+  }
+
   return (
     <PageShell>
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -87,14 +178,80 @@ export function TaskBoardPage() {
         </div>
       </section>
 
+      <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Input
+            label="Search"
+            placeholder="Search title, assignee, tags..."
+            value={filters.query}
+            onChange={(event) => handleSearchChange(event.target.value)}
+          />
+
+          <Select
+            label="Priority"
+            value={filters.priority}
+            onChange={(event) => handlePriorityChange(event.target.value)}
+          >
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </Select>
+
+          <Select
+            label="Sort by"
+            value={filters.sortBy}
+            onChange={(event) => handleSortChange(event.target.value)}
+          >
+            <option value="updatedAt">Updated time</option>
+            <option value="createdAt">Created time</option>
+            <option value="priority">Priority</option>
+          </Select>
+
+          <div className="flex items-end">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={handleResetFilters}
+            >
+              Reset Filters
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="mb-2 text-sm font-medium text-slate-800">Status</p>
+          <div className="flex flex-wrap gap-2">
+            {STATUS_FILTER_OPTIONS.map((option) => {
+              const checked = filters.statuses.includes(option.value)
+              return (
+                <label
+                  key={option.value}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300"
+                    checked={checked}
+                    onChange={() => handleStatusToggle(option.value)}
+                  />
+                  {option.label}
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {TASK_BOARD_COLUMNS.map((column) => (
+        {visibleColumns.map((column) => (
           <TaskColumn
             key={column.key}
-            status={column.key}
             title={column.title}
             description={column.description}
             nowTs={nowTs}
+            tasks={tasksByStatus[column.key]}
             onEditTask={handleOpenEdit}
           />
         ))}
