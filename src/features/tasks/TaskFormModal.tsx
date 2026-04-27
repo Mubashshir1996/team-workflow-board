@@ -1,0 +1,174 @@
+import { useEffect } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { Button, Input, Modal, Select, TextArea } from '@/components/ui'
+import {
+  taskFormSchema,
+  type TaskFormValues,
+} from '@/features/tasks/taskForm.schema'
+import type { Task, TaskPriority, TaskStatus } from '@/types/task'
+
+type SubmitTaskPayload = {
+  title: string
+  description: string
+  assignee: string
+  status: TaskStatus
+  priority: TaskPriority
+  tags: string[]
+}
+
+type TaskFormModalProps = {
+  open: boolean
+  mode: 'create' | 'edit'
+  task?: Task | null
+  onClose: () => void
+  onSubmitTask: (payload: SubmitTaskPayload) => void
+}
+
+const DEFAULT_VALUES: TaskFormValues = {
+  title: '',
+  description: '',
+  assignee: '',
+  status: 'todo',
+  priority: 'medium',
+  tags: '',
+}
+
+function getFormValues(task?: Task | null): TaskFormValues {
+  if (!task) return DEFAULT_VALUES
+  return {
+    title: task.title,
+    description: task.description,
+    assignee: task.assignee,
+    status: task.status,
+    priority: task.priority,
+    tags: task.tags.join(', '),
+  }
+}
+
+function parseTags(tagsValue: string) {
+  if (!tagsValue.trim()) return []
+  return tagsValue
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+}
+
+export function TaskFormModal({
+  open,
+  mode,
+  task,
+  onClose,
+  onSubmitTask,
+}: TaskFormModalProps) {
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+    setFocus,
+  } = useForm<TaskFormValues>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: getFormValues(task),
+  })
+
+  useEffect(() => {
+    if (!open) return
+    reset(getFormValues(task))
+    const focusTimer = window.setTimeout(() => setFocus('title'), 0)
+    return () => window.clearTimeout(focusTimer)
+  }, [open, reset, setFocus, task])
+
+  const onSubmit = handleSubmit((values) => {
+    onSubmitTask({
+      title: values.title.trim(),
+      description: values.description.trim(),
+      assignee: values.assignee.trim(),
+      status: values.status,
+      priority: values.priority,
+      tags: parseTags(values.tags),
+    })
+    onClose()
+  })
+  const handleFormSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
+    void onSubmit(event)
+  }
+
+  const isEditMode = mode === 'edit'
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isEditMode ? 'Edit Task' : 'Create Task'}
+      className="max-w-2xl"
+    >
+      <form onSubmit={handleFormSubmit} className="space-y-4">
+        <Input
+          label="Title"
+          required
+          placeholder="Task title"
+          errorText={errors.title?.message}
+          {...register('title')}
+        />
+
+        <TextArea
+          label="Description"
+          required
+          placeholder="Describe what needs to be done"
+          errorText={errors.description?.message}
+          rows={4}
+          {...register('description')}
+        />
+
+        <Input
+          label="Assignee"
+          required
+          placeholder="Who owns this task?"
+          errorText={errors.assignee?.message}
+          {...register('assignee')}
+        />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Select
+            label="Status"
+            errorText={errors.status?.message}
+            {...register('status')}
+          >
+            <option value="todo">Backlog</option>
+            <option value="in_progress">In Progress</option>
+            <option value="done">Done</option>
+          </Select>
+
+          <Select
+            label="Priority"
+            errorText={errors.priority?.message}
+            {...register('priority')}
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </Select>
+        </div>
+
+        <Input
+          label="Tags"
+          placeholder="Comma separated tags (e.g. frontend, urgent)"
+          errorText={errors.tags?.message}
+          {...register('tags')}
+        />
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isEditMode ? 'Save Changes' : 'Create Task'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+export type { SubmitTaskPayload }

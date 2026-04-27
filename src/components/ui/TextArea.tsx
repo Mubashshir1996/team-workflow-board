@@ -2,10 +2,10 @@ import * as React from 'react'
 import { cn } from '@/lib/cn'
 
 type TextAreaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
-  label?: string
-  helperText?: string
-  errorText?: string
-  containerClassName?: string
+  label?: string | undefined
+  helperText?: string | undefined
+  errorText?: string | undefined
+  containerClassName?: string | undefined
 }
 
 const TextArea = React.forwardRef<HTMLTextAreaElement, TextAreaProps>(

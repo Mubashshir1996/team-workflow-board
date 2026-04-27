@@ -6,6 +6,7 @@ import type { Task, TaskPriority } from '@/types/task'
 type TaskCardProps = {
   task: Task
   nowTs: number
+  onEditTask?: (task: Task) => void
 }
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
@@ -18,7 +19,7 @@ function formatPriority(priority: TaskPriority) {
   return priority.charAt(0).toUpperCase() + priority.slice(1)
 }
 
-export function TaskCard({ task, nowTs }: TaskCardProps) {
+export function TaskCard({ task, nowTs, onEditTask }: TaskCardProps) {
   return (
     <Card className="border-slate-200">
       <CardHeader className="p-4 pb-3">
@@ -59,6 +60,18 @@ export function TaskCard({ task, nowTs }: TaskCardProps) {
         <p className="text-xs text-slate-500">
           Updated {formatRelativeUpdatedTime(task.updatedAt, nowTs)}
         </p>
+
+        {onEditTask ? (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => onEditTask(task)}
+              className="text-xs font-medium text-slate-700 underline-offset-4 transition hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 ring-offset-white"
+            >
+              Edit
+            </button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

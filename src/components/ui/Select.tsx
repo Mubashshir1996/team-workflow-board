@@ -2,11 +2,11 @@ import * as React from 'react'
 import { cn } from '@/lib/cn'
 
 type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
-  label?: string
-  helperText?: string
-  errorText?: string
-  containerClassName?: string
-  placeholder?: string
+  label?: string | undefined
+  helperText?: string | undefined
+  errorText?: string | undefined
+  containerClassName?: string | undefined
+  placeholder?: string | undefined
 }
 
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
