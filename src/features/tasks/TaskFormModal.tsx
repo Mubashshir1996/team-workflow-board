@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useBeforeUnload, useBlocker } from 'react-router-dom'
@@ -100,17 +100,37 @@ export function TaskFormModal({
     }
   }, [blocker])
 
-  const onSubmit = handleSubmit((values) => {
-    onSubmitTask({
-      title: values.title.trim(),
-      description: values.description.trim(),
-      assignee: values.assignee.trim(),
-      status: values.status,
-      priority: values.priority,
-      tags: parseTags(values.tags),
-    })
-    onClose()
-  })
+  const validationMessages = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          Object.values(errors)
+            .map((error) => error?.message)
+            .filter((message): message is string => Boolean(message)),
+        ),
+      ),
+    [errors],
+  )
+
+  const onSubmit = handleSubmit(
+    (values) => {
+      onSubmitTask({
+        title: values.title.trim(),
+        description: values.description.trim(),
+        assignee: values.assignee.trim(),
+        status: values.status,
+        priority: values.priority,
+        tags: parseTags(values.tags),
+      })
+      onClose()
+    },
+    (formErrors) => {
+      const firstField = Object.keys(formErrors)[0]
+      if (firstField) {
+        void setFocus(firstField as keyof TaskFormValues)
+      }
+    },
+  )
   const handleFormSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
     void onSubmit(event)
   }
@@ -138,6 +158,21 @@ export function TaskFormModal({
       className="max-w-2xl"
     >
       <form onSubmit={handleFormSubmit} className="space-y-4">
+        {validationMessages.length > 0 ? (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3"
+          >
+            <p className="m-0 text-sm font-semibold text-rose-900">
+              Fix {validationMessages.length === 1 ? 'this issue' : 'these issues'} to continue.
+            </p>
+            <p className="mt-1 text-sm text-rose-700">
+              {validationMessages.join(' ')}
+            </p>
+          </div>
+        ) : null}
+
         <Input
           label="Title"
           required

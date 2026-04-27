@@ -17,6 +17,7 @@ describe('taskStorage', () => {
     expect(result.tasks).toEqual([])
     expect(result.schemaVersion).toBe(TASKS_SCHEMA_VERSION)
     expect(result.migrationStatus).toBe('empty')
+    expect(result.storageStatus).toBe('available')
   })
 
   it('saves and loads version 2 tasks without migration', () => {
@@ -40,6 +41,7 @@ describe('taskStorage', () => {
     expect(result.tasks).toEqual(tasks)
     expect(result.schemaVersion).toBe(2)
     expect(result.migrationStatus).toBe('none')
+    expect(result.storageStatus).toBe('available')
   })
 
   it('migrates schema version 1 data to version 2 and returns migration status', () => {
@@ -63,6 +65,7 @@ describe('taskStorage', () => {
     expect(result.schemaVersion).toBe(2)
     expect(result.migrationStatus).toBe('migrated')
     expect(result.migratedFromVersion).toBe(1)
+    expect(result.storageStatus).toBe('available')
     expect(result.tasks).toHaveLength(1)
     const migratedTask = result.tasks[0]
     expect(migratedTask).toBeDefined()
@@ -99,5 +102,46 @@ describe('taskStorage', () => {
 
     expect(result.tasks).toEqual([])
     expect(result.migrationStatus).toBe('invalid')
+    expect(result.storageStatus).toBe('available')
+  })
+
+  it('reports storage unavailable when saving fails', () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('Storage blocked')
+      })
+
+    const result = saveTasks([
+      {
+        id: 'task-1',
+        title: 'Draft fallback state',
+        description: 'Show memory-only warning',
+        status: 'todo',
+        priority: 'medium',
+        assignee: 'Jordan',
+        tags: [],
+        createdAt: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+      },
+    ])
+
+    expect(result).toBe('unavailable')
+    setItemSpy.mockRestore()
+  })
+
+  it('reports storage unavailable when loading fails', () => {
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, 'getItem')
+      .mockImplementation(() => {
+        throw new Error('Storage blocked')
+      })
+
+    const result = loadTasks()
+
+    expect(result.tasks).toEqual([])
+    expect(result.migrationStatus).toBe('empty')
+    expect(result.storageStatus).toBe('unavailable')
+    getItemSpy.mockRestore()
   })
 })

@@ -26,12 +26,24 @@ type PersistedTasksV2 = {
 type PersistedTasks = PersistedTasksV1 | PersistedTasksV2
 
 export type MigrationStatus = 'none' | 'migrated' | 'empty' | 'invalid'
+export type StorageStatus = 'available' | 'unavailable'
 
 export type LoadTasksResult = {
   tasks: Task[]
   schemaVersion: number
   migrationStatus: MigrationStatus
+  storageStatus: StorageStatus
   migratedFromVersion?: number
+}
+
+function getLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
 }
 
 function toTaskV2(task: TaskV1, nowIso: string): TaskV2 {
@@ -77,8 +89,9 @@ function normalizeTaskV2(task: TaskV2): TaskV2 {
   }
 }
 
-export function saveTasks(tasks: Task[]): void {
-  if (typeof window === 'undefined') return
+export function saveTasks(tasks: Task[]): StorageStatus {
+  const storage = getLocalStorage()
+  if (!storage) return 'unavailable'
 
   const normalized = tasks.map((task) => normalizeTaskV2(task))
   const payload: PersistedTasksV2 = {
@@ -86,24 +99,43 @@ export function saveTasks(tasks: Task[]): void {
     tasks: normalized,
   }
 
-  window.localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(payload))
+  try {
+    storage.setItem(TASKS_STORAGE_KEY, JSON.stringify(payload))
+    return 'available'
+  } catch {
+    return 'unavailable'
+  }
 }
 
 export function loadTasks(): LoadTasksResult {
-  if (typeof window === 'undefined') {
+  const storage = getLocalStorage()
+  if (!storage) {
     return {
       tasks: [],
       schemaVersion: TASKS_SCHEMA_VERSION,
       migrationStatus: 'empty',
+      storageStatus: 'unavailable',
     }
   }
 
-  const raw = window.localStorage.getItem(TASKS_STORAGE_KEY)
+  let raw: string | null
+  try {
+    raw = storage.getItem(TASKS_STORAGE_KEY)
+  } catch {
+    return {
+      tasks: [],
+      schemaVersion: TASKS_SCHEMA_VERSION,
+      migrationStatus: 'empty',
+      storageStatus: 'unavailable',
+    }
+  }
+
   if (!raw) {
     return {
       tasks: [],
       schemaVersion: TASKS_SCHEMA_VERSION,
       migrationStatus: 'empty',
+      storageStatus: 'available',
     }
   }
 
@@ -115,6 +147,7 @@ export function loadTasks(): LoadTasksResult {
       tasks: [],
       schemaVersion: TASKS_SCHEMA_VERSION,
       migrationStatus: 'invalid',
+      storageStatus: 'available',
     }
   }
 
@@ -123,6 +156,7 @@ export function loadTasks(): LoadTasksResult {
       tasks: [],
       schemaVersion: TASKS_SCHEMA_VERSION,
       migrationStatus: 'invalid',
+      storageStatus: 'available',
     }
   }
 
@@ -132,6 +166,7 @@ export function loadTasks(): LoadTasksResult {
       tasks: [],
       schemaVersion: TASKS_SCHEMA_VERSION,
       migrationStatus: 'invalid',
+      storageStatus: 'available',
     }
   }
 
@@ -141,17 +176,19 @@ export function loadTasks(): LoadTasksResult {
       tasks: normalized,
       schemaVersion: 2,
       migrationStatus: 'none',
+      storageStatus: 'available',
     }
   }
 
   if (payload.schemaVersion === 1) {
     const nowIso = new Date().toISOString()
     const migratedTasks = payload.tasks.map((task) => toTaskV2(task, nowIso))
-    saveTasks(migratedTasks)
+    const storageStatus = saveTasks(migratedTasks)
     return {
       tasks: migratedTasks,
       schemaVersion: TASKS_SCHEMA_VERSION,
       migrationStatus: 'migrated',
+      storageStatus,
       migratedFromVersion: 1,
     }
   }
@@ -160,6 +197,7 @@ export function loadTasks(): LoadTasksResult {
     tasks: [],
     schemaVersion: TASKS_SCHEMA_VERSION,
     migrationStatus: 'invalid',
+    storageStatus: 'available',
     migratedFromVersion: payload.schemaVersion,
   }
 }

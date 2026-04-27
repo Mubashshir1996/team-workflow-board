@@ -9,19 +9,27 @@ import {
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useSearchParams } from 'react-router-dom'
-import { Button, Input, Select } from '@/components/ui'
+import { Button, Input, Select, useToast } from '@/components/ui'
 import { PageShell } from '@/components/ui/PageShell'
 import { TaskColumn } from '@/features/tasks/TaskColumn'
+import { TaskBoardState } from '@/features/tasks/TaskBoardState'
 import { TaskFormModal, type SubmitTaskPayload } from '@/features/tasks/TaskFormModal'
 import {
+  DEFAULT_TASK_FILTERS,
   applyTaskFiltersAndSort,
   buildSearchParamsFromTaskFilters,
-  DEFAULT_TASK_FILTERS,
   parseTaskFiltersFromSearchParams,
   type TaskFiltersState,
 } from '@/features/tasks/taskFilters'
 import { TASK_BOARD_COLUMNS } from '@/features/tasks/taskBoard.constants'
-import { selectIsLoaded, useTaskActions, useTaskStore } from '@/store/useTaskStore'
+import {
+  selectIsLoaded,
+  selectMigratedFromVersion,
+  selectMigrationStatus,
+  selectStorageStatus,
+  useTaskActions,
+  useTaskStore,
+} from '@/store/useTaskStore'
 import type { Task, TaskStatus } from '@/types/task'
 
 const STATUS_FILTER_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
@@ -32,8 +40,12 @@ const STATUS_FILTER_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
 
 export function TaskBoardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const toast = useToast()
   const isLoaded = useTaskStore(selectIsLoaded)
   const tasks = useTaskStore((state) => state.tasks)
+  const migrationStatus = useTaskStore(selectMigrationStatus)
+  const migratedFromVersion = useTaskStore(selectMigratedFromVersion)
+  const storageStatus = useTaskStore(selectStorageStatus)
   const { addTask, loadInitialTasks, moveTask, updateTask } = useTaskActions()
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
@@ -83,9 +95,14 @@ export function TaskBoardPage() {
 
   useEffect(() => {
     if (!isLoaded) {
-      loadInitialTasks()
+      const result = loadInitialTasks()
+      if (result.migrationStatus === 'migrated') {
+        toast.success('Your saved tasks were upgraded and are ready to use.', {
+          title: `Migration complete from v${result.migratedFromVersion ?? 1}`,
+        })
+      }
     }
-  }, [isLoaded, loadInitialTasks])
+  }, [isLoaded, loadInitialTasks, toast])
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowTs(Date.now()), 60_000)
@@ -211,6 +228,9 @@ export function TaskBoardPage() {
     updateFilters(DEFAULT_TASK_FILTERS)
   }
 
+  const hasTasks = tasks.length > 0
+  const hasFilteredResults = filteredAndSortedTasks.length > 0
+
   return (
     <PageShell>
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -226,6 +246,18 @@ export function TaskBoardPage() {
           <Button onClick={handleOpenCreate}>New Task</Button>
         </div>
       </section>
+
+      {storageStatus === 'unavailable' ? (
+        <section className="mb-6">
+          <TaskBoardState
+            compact
+            tone="warning"
+            eyebrow="Storage unavailable"
+            title="Tasks will only stay in this tab for now."
+            message="This browser cannot access local storage, so changes will not persist after a refresh or restart."
+          />
+        </section>
+      ) : null}
 
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -293,21 +325,45 @@ export function TaskBoardPage() {
         </div>
       </section>
 
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visibleColumns.map((column) => (
-            <TaskColumn
-              key={column.key}
-              status={column.key}
-              title={column.title}
-              description={column.description}
-              nowTs={nowTs}
-              tasks={tasksByStatus[column.key]}
-              onEditTask={handleOpenEdit}
-            />
-          ))}
-        </section>
-      </DndContext>
+      {!hasTasks ? (
+        <TaskBoardState
+          eyebrow="No tasks yet"
+          title="Start the board with your first task."
+          message="Create a task to begin tracking work across backlog, in progress, and done."
+          actionLabel="Create First Task"
+          onAction={handleOpenCreate}
+        />
+      ) : !hasFilteredResults ? (
+        <TaskBoardState
+          eyebrow="No matches"
+          title="No tasks match these filters."
+          message="Try clearing the search, changing the selected statuses, or resetting filters to bring tasks back into view."
+          actionLabel="Reset Filters"
+          onAction={handleResetFilters}
+        />
+      ) : (
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {visibleColumns.map((column) => (
+              <TaskColumn
+                key={column.key}
+                status={column.key}
+                title={column.title}
+                description={column.description}
+                nowTs={nowTs}
+                tasks={tasksByStatus[column.key]}
+                onEditTask={handleOpenEdit}
+              />
+            ))}
+          </section>
+        </DndContext>
+      )}
+
+      {migrationStatus === 'migrated' && migratedFromVersion ? (
+        <p className="mt-4 text-center text-sm text-slate-500">
+          Saved tasks were upgraded from schema v{migratedFromVersion}.
+        </p>
+      ) : null}
 
       <TaskFormModal
         open={isFormOpen}

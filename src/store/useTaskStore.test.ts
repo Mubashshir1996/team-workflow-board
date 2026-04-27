@@ -9,6 +9,7 @@ describe('useTaskStore', () => {
       isLoaded: false,
       migrationStatus: null,
       migratedFromVersion: null,
+      storageStatus: 'available',
     })
   })
 
@@ -30,6 +31,7 @@ describe('useTaskStore', () => {
       status: 'todo',
       priority: 'high',
     })
+    expect(useTaskStore.getState().storageStatus).toBe('available')
 
     store.updateTask(created.id, { title: 'Create robust task store' })
     expect(useTaskStore.getState().tasks[0]?.title).toBe('Create robust task store')
@@ -56,5 +58,25 @@ describe('useTaskStore', () => {
     expect(result.migratedFromVersion).toBe(1)
     expect(useTaskStore.getState().isLoaded).toBe(true)
     expect(useTaskStore.getState().tasks).toHaveLength(1)
+    expect(useTaskStore.getState().storageStatus).toBe('available')
+  })
+
+  it('keeps tasks in memory and marks storage unavailable when persistence fails', () => {
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('Storage blocked')
+      })
+
+    const created = useTaskStore.getState().addTask({
+      title: 'Create fallback',
+      description: 'Stay usable when storage is blocked',
+      assignee: 'Taylor',
+    })
+
+    expect(created.title).toBe('Create fallback')
+    expect(useTaskStore.getState().tasks).toHaveLength(1)
+    expect(useTaskStore.getState().storageStatus).toBe('unavailable')
+    setItemSpy.mockRestore()
   })
 })

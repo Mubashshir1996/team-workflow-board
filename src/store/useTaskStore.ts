@@ -5,6 +5,7 @@ import {
   type LoadTasksResult,
   saveTasks,
   type MigrationStatus,
+  type StorageStatus,
 } from '@/features/tasks/taskStorage'
 import type { Task, TaskPriority, TaskStatus } from '@/types/task'
 
@@ -26,6 +27,7 @@ type TaskStoreState = {
   isLoaded: boolean
   migrationStatus: MigrationStatus | null
   migratedFromVersion: number | null
+  storageStatus: StorageStatus
   addTask: (input: AddTaskInput) => Task
   updateTask: (id: string, updates: UpdateTaskInput) => void
   deleteTask: (id: string) => void
@@ -49,6 +51,7 @@ export const useTaskStore = create<TaskStoreState>((set) => ({
   isLoaded: false,
   migrationStatus: null,
   migratedFromVersion: null,
+  storageStatus: 'available',
 
   addTask: (input) => {
     const timestamp = nowIso()
@@ -66,8 +69,8 @@ export const useTaskStore = create<TaskStoreState>((set) => ({
 
     set((state) => {
       const nextTasks = [...state.tasks, nextTask]
-      saveTasks(nextTasks)
-      return { tasks: nextTasks }
+      const storageStatus = saveTasks(nextTasks)
+      return { tasks: nextTasks, storageStatus }
     })
 
     return nextTask
@@ -83,16 +86,16 @@ export const useTaskStore = create<TaskStoreState>((set) => ({
           updatedAt: nowIso(),
         }
       })
-      saveTasks(nextTasks)
-      return { tasks: nextTasks }
+      const storageStatus = saveTasks(nextTasks)
+      return { tasks: nextTasks, storageStatus }
     })
   },
 
   deleteTask: (id) => {
     set((state) => {
       const nextTasks = state.tasks.filter((task) => task.id !== id)
-      saveTasks(nextTasks)
-      return { tasks: nextTasks }
+      const storageStatus = saveTasks(nextTasks)
+      return { tasks: nextTasks, storageStatus }
     })
   },
 
@@ -106,8 +109,8 @@ export const useTaskStore = create<TaskStoreState>((set) => ({
           updatedAt: nowIso(),
         }
       })
-      saveTasks(nextTasks)
-      return { tasks: nextTasks }
+      const storageStatus = saveTasks(nextTasks)
+      return { tasks: nextTasks, storageStatus }
     })
   },
 
@@ -118,6 +121,7 @@ export const useTaskStore = create<TaskStoreState>((set) => ({
       isLoaded: true,
       migrationStatus: result.migrationStatus,
       migratedFromVersion: result.migratedFromVersion ?? null,
+      storageStatus: result.storageStatus,
     })
     return result
   },
@@ -129,6 +133,8 @@ export const selectMigrationStatus = (state: TaskStoreState) =>
   state.migrationStatus
 export const selectMigratedFromVersion = (state: TaskStoreState) =>
   state.migratedFromVersion
+export const selectStorageStatus = (state: TaskStoreState) =>
+  state.storageStatus
 
 export const selectTaskById =
   (taskId: string) =>
