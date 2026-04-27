@@ -158,7 +158,7 @@ export function useTaskById(taskId: string) {
 }
 
 export function useTasksByStatus(status: TaskStatus) {
-  return useTaskStore(selectTasksByStatus(status))
+  return useTaskStore(useShallow(selectTasksByStatus(status)))
 }
 
 export type { AddTaskInput, TaskStoreState, UpdateTaskInput }
