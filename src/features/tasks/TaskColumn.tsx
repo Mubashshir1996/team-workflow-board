@@ -1,8 +1,14 @@
-import { TaskCard } from '@/features/tasks/TaskCard'
+import { useDroppable } from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { TaskSortableCard } from '@/features/tasks/TaskSortableCard'
 import { cn } from '@/lib/cn'
-import type { Task } from '@/types/task'
+import type { Task, TaskStatus } from '@/types/task'
 
 type TaskColumnProps = {
+  status: TaskStatus
   title: string
   description: string
   nowTs: number
@@ -11,17 +17,28 @@ type TaskColumnProps = {
 }
 
 export function TaskColumn({
+  status,
   title,
   description,
   nowTs,
   tasks,
   onEditTask,
 }: TaskColumnProps) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `column:${status}`,
+    data: {
+      type: 'column',
+      status,
+    },
+  })
+
   return (
     <section
+      ref={setNodeRef}
       aria-label={title}
       className={cn(
-        'flex min-h-[18rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm',
+        'flex min-h-[18rem] flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition',
+        isOver && 'border-slate-400 ring-2 ring-slate-200',
       )}
     >
       <header className="border-b border-slate-100 pb-3">
@@ -37,20 +54,25 @@ export function TaskColumn({
       </header>
 
       <div className="mt-4 flex flex-1 flex-col gap-3">
-        {tasks.length > 0 ? (
-          tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              nowTs={nowTs}
-              onEditTask={onEditTask}
-            />
-          ))
-        ) : (
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-            No tasks in this column yet.
-          </div>
-        )}
+        <SortableContext
+          items={tasks.map((task) => task.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {tasks.length > 0 ? (
+            tasks.map((task) => (
+              <TaskSortableCard
+                key={task.id}
+                task={task}
+                nowTs={nowTs}
+                onEditTask={onEditTask}
+              />
+            ))
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No tasks in this column yet.
+            </div>
+          )}
+        </SortableContext>
       </div>
     </section>
   )

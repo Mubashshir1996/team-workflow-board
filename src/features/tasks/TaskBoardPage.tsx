@@ -1,4 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useSearchParams } from 'react-router-dom'
 import { Button, Input, Select } from '@/components/ui'
 import { PageShell } from '@/components/ui/PageShell'
@@ -25,11 +34,21 @@ export function TaskBoardPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const isLoaded = useTaskStore(selectIsLoaded)
   const tasks = useTaskStore((state) => state.tasks)
-  const { addTask, loadInitialTasks, updateTask } = useTaskActions()
+  const { addTask, loadInitialTasks, moveTask, updateTask } = useTaskActions()
   const [nowTs, setNowTs] = useState(() => Date.now())
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   const filters = useMemo(
     () => parseTaskFiltersFromSearchParams(searchParams),
@@ -110,6 +129,36 @@ export function TaskBoardPage() {
       priority: payload.priority,
       tags: payload.tags,
     })
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over) return
+
+    const activeTaskId = String(active.id)
+    const activeTask = tasks.find((task) => task.id === activeTaskId)
+    if (!activeTask) return
+
+    const overId = String(over.id)
+    let nextStatus: TaskStatus | null = null
+
+    if (overId.startsWith('column:')) {
+      const overStatus = overId.replace('column:', '')
+      if (overStatus === 'todo' || overStatus === 'in_progress' || overStatus === 'done') {
+        nextStatus = overStatus
+      }
+    } else {
+      const overTask = tasks.find((task) => task.id === overId)
+      if (overTask) {
+        nextStatus = overTask.status
+      }
+    }
+
+    if (!nextStatus || nextStatus === activeTask.status) {
+      return
+    }
+
+    moveTask(activeTask.id, nextStatus)
   }
 
   const updateFilters = (nextFilters: TaskFiltersState) => {
@@ -244,18 +293,21 @@ export function TaskBoardPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {visibleColumns.map((column) => (
-          <TaskColumn
-            key={column.key}
-            title={column.title}
-            description={column.description}
-            nowTs={nowTs}
-            tasks={tasksByStatus[column.key]}
-            onEditTask={handleOpenEdit}
-          />
-        ))}
-      </section>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visibleColumns.map((column) => (
+            <TaskColumn
+              key={column.key}
+              status={column.key}
+              title={column.title}
+              description={column.description}
+              nowTs={nowTs}
+              tasks={tasksByStatus[column.key]}
+              onEditTask={handleOpenEdit}
+            />
+          ))}
+        </section>
+      </DndContext>
 
       <TaskFormModal
         open={isFormOpen}
